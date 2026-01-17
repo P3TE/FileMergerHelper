@@ -3,4 +3,6 @@ project(file_duplicate_scanner)
 
 set(CMAKE_CXX_STANDARD 26)
 
-add_executable(file_duplicate_scanner main.cpp)
+add_executable(file_duplicate_scanner main.cpp
+        main.cpp
+        main.cpp)
