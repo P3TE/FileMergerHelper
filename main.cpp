@@ -6,7 +6,19 @@
 #include <map>
 #include <memory>
 #include <queue>
+#include <unordered_set>
 #include <utility>
+
+constexpr int MinimumFileSizeBytes = 512;
+
+const std::string IgnoreDirectoryFile = ".ignore_duplicate_files";
+
+std::unordered_set<std::string> IgnoredDirectoryNames;
+
+void populate_ignore_directory_names()
+{
+    IgnoredDirectoryNames.emplace(".git");
+}
 
 class InputArguments {
 public:
@@ -140,7 +152,9 @@ void display_duplicates(const std::map<uintmax_t, std::vector<std::shared_ptr<Fo
     // TODO - Handle the case where files have the same size in bytes, but the contents differ.
     //          An example of this is the warcraft III screenshots.
 
-    for (auto files_with_duplicates : duplicate_found_files)
+    std::cout << "Total duplicate file count = " << duplicate_found_files.size() << std::endl;
+
+    for (const auto& files_with_duplicates : duplicate_found_files)
     {
         // const std::vector<std::string>& filePaths = file_size_to_path_map.at(duplicateFileSize);
 
@@ -172,8 +186,35 @@ void scan_for_duplicates(std::shared_ptr<InputArguments> args) {
 
         // std::cout << "Searching directory: " << currentDirectory.path().generic_string() << std::endl;
 
+        // IgnoreDirectoryFile
+        // Check whether this directory should be ignored for the purpose of duplicate detection.
+        bool ignore_this_directory = false;
+        for (const std::filesystem::directory_entry& entry: std::filesystem::directory_iterator(currentDirectory))
+        {
+            if (entry.is_regular_file())
+            {
+                const std::filesystem::path& entry_path = entry.path();
+                std::string file_name = entry_path.filename().generic_string();
+                if (file_name == IgnoreDirectoryFile)
+                {
+                    ignore_this_directory = true;
+                    break;
+                }
+            }
+        }
+
+        if (ignore_this_directory) continue;
+
         for (const std::filesystem::directory_entry& entry: std::filesystem::directory_iterator(currentDirectory)) {
             if (entry.is_directory()) {
+
+                const std::filesystem::path& directory_path = entry.path();
+                std::string directory_name = directory_path.filename().generic_string();
+                if (IgnoredDirectoryNames.contains(directory_name))
+                {
+                    continue;
+                }
+
                 directoryQueue.emplace(entry);
             } else {
                 std::string entryPath = entry.path().generic_string();
@@ -186,6 +227,12 @@ void scan_for_duplicates(std::shared_ptr<InputArguments> args) {
                     */
 
                 uintmax_t file_size = entry.file_size();
+
+                if (file_size < MinimumFileSizeBytes)
+                {
+                    // Ignore files that are too small.
+                    continue;
+                }
 
                 FoundFile found_file(file_size, entryPath);
 
@@ -263,6 +310,7 @@ int main(int argc, char* argv[]) {
         std::cout << "Make changes is set to false, no file system changes will be made." << std::endl;
     }
 
+    populate_ignore_directory_names();
     scan_for_duplicates(inputArguments);
 
     return 0;
