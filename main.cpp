@@ -23,21 +23,59 @@ void populate_ignore_directory_names()
 class InputArguments {
 public:
     std::string programExecutablePath;
-    std::string inputPath;
+
+    std::filesystem::path inputPath;
+
+    std::filesystem::path inputUnclassifiedPath;
+    std::filesystem::path inputUniquePath;
+    std::filesystem::path inputDuplicatePath;
+
+    std::filesystem::path destinationPath;
     bool makeChanges = false;
 
+    std::filesystem::path check_exists_and_is_empty(const std::filesystem::path& parent, const std::string& directory_name, bool required_empty)
+    {
+        std::filesystem::path as_path = parent;
+        as_path.append(directory_name);
+
+        std::filesystem::directory_entry as_directory = std::filesystem::directory_entry(as_path);
+
+        if (!as_directory.is_directory())
+        {
+            std::stringstream ss;
+            ss << "Input directory " << as_path << " is not a directory.";
+            throw std::invalid_argument(ss.str());
+        }
+
+        int directory_entry_count = 0;
+        for (const std::filesystem::directory_entry& entry: std::filesystem::directory_iterator(as_directory))
+        {
+            directory_entry_count++;
+        }
+
+        if (required_empty && directory_entry_count > 0)
+        {
+            std::stringstream ss;
+            ss << "Input directory " << as_path << " is not empty!";
+            throw std::invalid_argument(ss.str());
+        }
+
+        return as_path;
+    }
+
     InputArguments(int argc, char* argv[]) {
-        if (argc != 2 && argc != 3) {
-            throw std::invalid_argument("Expected exactly one argument: <input_path> [--apply]");
+        if (argc != 3 && argc != 4) {
+            throw std::invalid_argument("Expected exactly one argument: <input_path> <destination_path> [--apply]");
         }
 
         programExecutablePath = argv[0];
         inputPath = argv[1];
+        destinationPath = argv[2];
 
-        if (argc == 3)
+        if (argc == 4)
         {
             const std::string ExpectedArgument = "--apply";
-            if (ExpectedArgument == argv[2])
+            if (ExpectedArgument == argv[3])
             {
                 makeChanges = true;
             } else
@@ -54,6 +92,17 @@ public:
             ss << "Input path '" << inputPath << "' is not a directory.";
             throw std::invalid_argument(ss.str());
         }
+
+        bool destinationPathIsDirectory = std::filesystem::is_directory(destinationPath);
+        if (!destinationPathIsDirectory) {
+            std::stringstream ss;
+            ss << "Destination path '" << destinationPath << "' is not a directory.";
+            throw std::invalid_argument(ss.str());
+        }
+
+        inputUnclassifiedPath = check_exists_and_is_empty(inputPath, "unclassified", false);
+        inputUnclassifiedPath = check_exists_and_is_empty(inputPath, "unique", true);
+        inputUnclassifiedPath = check_exists_and_is_empty(inputPath, "duplicate", true);
     }
 };
 
@@ -275,7 +324,7 @@ void scan_for_duplicates(std::shared_ptr<InputArguments> args) {
 
 int main(int argc, char* argv[]) {
 
-    const std::string ProgramName = "File Duplicate Scanner";
+    const std::string ProgramName = "File Merger Helper";
     const std::string ProgramVersion = "0.0.1";
 
     std::cout << "Starting " << ProgramName << " version " << ProgramVersion << std::endl;
@@ -290,6 +339,7 @@ int main(int argc, char* argv[]) {
     }
 
     std::cout << "Input path: " << inputArguments->inputPath << std::endl;
+    std::cout << "Destination path: " << inputArguments->destinationPath << std::endl;
 
     if (inputArguments->makeChanges)
     {
