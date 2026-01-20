@@ -11,8 +11,6 @@
 
 constexpr int MinimumFileSizeBytes = 512;
 
-const std::string IgnoreDirectoryFile = ".ignore_duplicate_files";
-
 std::unordered_set<std::string> IgnoredDirectoryNames;
 
 void populate_ignore_directory_names()
@@ -101,8 +99,8 @@ public:
         }
 
         inputUnclassifiedPath = check_exists_and_is_empty(inputPath, "unclassified", false);
-        inputUnclassifiedPath = check_exists_and_is_empty(inputPath, "unique", true);
-        inputUnclassifiedPath = check_exists_and_is_empty(inputPath, "duplicate", true);
+        inputUniquePath = check_exists_and_is_empty(inputPath, "unique", true);
+        inputDuplicatePath = check_exists_and_is_empty(inputPath, "duplicate", true);
     }
 };
 
@@ -220,12 +218,12 @@ void display_duplicates(const std::map<uintmax_t, std::vector<std::shared_ptr<Fo
     }
 }
 
-void scan_for_duplicates(std::shared_ptr<InputArguments> args) {
-    std::map<std::string, std::string> fileNameToPathMap;
+std::map<uintmax_t, std::vector<std::shared_ptr<FoundCommonFiles>>> BuildFileMap(std::filesystem::path input_path)
+{
     std::map<uintmax_t, std::vector<std::shared_ptr<FoundCommonFiles>>> fileSizeToPathMap;
 
     std::queue<std::filesystem::directory_entry> directoryQueue;
-    std::filesystem::path inputPath = args->inputPath;
+    std::filesystem::path inputPath = input_path;
     std::filesystem::directory_entry firstEntry = std::filesystem::directory_entry(inputPath);
     directoryQueue.emplace(firstEntry);
 
@@ -234,25 +232,6 @@ void scan_for_duplicates(std::shared_ptr<InputArguments> args) {
         directoryQueue.pop();
 
         // std::cout << "Searching directory: " << currentDirectory.path().generic_string() << std::endl;
-
-        // IgnoreDirectoryFile
-        // Check whether this directory should be ignored for the purpose of duplicate detection.
-        bool ignore_this_directory = false;
-        for (const std::filesystem::directory_entry& entry: std::filesystem::directory_iterator(currentDirectory))
-        {
-            if (entry.is_regular_file())
-            {
-                const std::filesystem::path& entry_path = entry.path();
-                std::string file_name = entry_path.filename().generic_string();
-                if (file_name == IgnoreDirectoryFile)
-                {
-                    ignore_this_directory = true;
-                    break;
-                }
-            }
-        }
-
-        if (ignore_this_directory) continue;
 
         for (const std::filesystem::directory_entry& entry: std::filesystem::directory_iterator(currentDirectory)) {
             if (entry.is_directory()) {
@@ -317,9 +296,51 @@ void scan_for_duplicates(std::shared_ptr<InputArguments> args) {
         }
     }
 
-    display_duplicates(fileSizeToPathMap);
+    return fileSizeToPathMap;
 }
 
+
+void scan_for_duplicates(std::shared_ptr<InputArguments> args)
+{
+    std::cout << "Building unclassified file map with base path: " << args->inputUnclassifiedPath << std::endl;
+    std::map<uintmax_t, std::vector<std::shared_ptr<FoundCommonFiles>>> unclassified_map = BuildFileMap(args->inputUnclassifiedPath);
+
+    std::cout << "Building destination file map with base path: " << args->destinationPath << std::endl;
+    std::map<uintmax_t, std::vector<std::shared_ptr<FoundCommonFiles>>> destination_map = BuildFileMap(args->destinationPath);
+
+    std::cout << "unclassified_map has " << unclassified_map.size() << " entries." << std::endl;
+    std::cout << "destination_map has " << destination_map.size() << " entries." << std::endl;
+
+    std::cout << "TODO - Merge logic..." << std::endl;
+
+    for (const auto& pair : unclassified_map)
+    {
+        if (!destination_map.contains(pair.first))
+        {
+            // This is unique.
+            std::cout << "Found unique paths:" << std::endl;
+
+            for (const std::shared_ptr<FoundCommonFiles>& file : pair.second)
+            {
+                for (const FoundFile& found_file : file->known_files)
+                {
+                    std::cout << found_file.file_path << std::endl;
+                }
+            }
+
+            continue;
+        }
+
+        for (const std::shared_ptr<FoundCommonFiles>& file : pair.second)
+        {
+
+        }
+    }
+
+
+    // destinationPath
+    // display_duplicates(fileSizeToPathMap);
+}
 
 
 int main(int argc, char* argv[]) {
