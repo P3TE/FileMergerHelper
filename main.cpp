@@ -9,7 +9,7 @@
 #include <unordered_set>
 #include <utility>
 
-constexpr int MinimumFileSizeBytes = 512;
+constexpr int MinimumFileSizeBytes = 256;
 
 std::unordered_set<std::string> IgnoredDirectoryNames;
 
@@ -178,6 +178,23 @@ struct file_size_comparator
     }
 };
 
+std::string to_lower(const std::string& str)
+{
+    std::string copy = str;
+    std::ranges::transform(copy, copy.begin(), [](unsigned char c){ return std::tolower(c); });
+    return std::move(copy);
+}
+
+struct file_path_comparator
+{
+    inline bool operator() (const FoundFile& a, const FoundFile& b) const
+    {
+        std::string a_path_lower = to_lower(a.file_path);
+        std::string b_path_lower = to_lower(b.file_path);
+        return a_path_lower < b_path_lower;
+    }
+};
+
 void display_duplicates(const std::map<uintmax_t, std::vector<std::shared_ptr<FoundCommonFiles>>>& file_size_to_path_map)
 {
     std::vector<std::shared_ptr<FoundCommonFiles>> duplicate_found_files;
@@ -313,18 +330,19 @@ void scan_for_duplicates(std::shared_ptr<InputArguments> args)
 
     std::cout << "TODO - Merge logic..." << std::endl;
 
+    // std::ranges::sort(duplicate_found_files.begin(), duplicate_found_files.end(), file_size_comparator());
+    std::vector<FoundFile> unique_found_files;
+
     for (const auto& pair : unclassified_map)
     {
         if (!destination_map.contains(pair.first))
         {
             // This is unique.
-            std::cout << "Found unique paths:" << std::endl;
-
             for (const std::shared_ptr<FoundCommonFiles>& file : pair.second)
             {
                 for (const FoundFile& found_file : file->known_files)
                 {
-                    std::cout << found_file.file_path << std::endl;
+                    unique_found_files.emplace_back(found_file); // Copy constructor.
                 }
             }
 
@@ -335,6 +353,17 @@ void scan_for_duplicates(std::shared_ptr<InputArguments> args)
         {
 
         }
+    }
+
+    // std::sort(uniqueFoundFiles)
+
+    std::ranges::sort(unique_found_files.begin(), unique_found_files.end(), file_path_comparator());
+
+    std::cout << "Found unique paths:" << std::endl;
+
+    for (const FoundFile& found_file : unique_found_files)
+    {
+        std::cout << found_file.file_path << std::endl;
     }
 
 
