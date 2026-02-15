@@ -316,6 +316,23 @@ std::map<uintmax_t, std::vector<std::shared_ptr<FoundCommonFiles>>> BuildFileMap
     return fileSizeToPathMap;
 }
 
+void move_file(const std::filesystem::path& from_path, const std::filesystem::path& to_path)
+{
+    std::cout << "Moving file: " << from_path << "to: " << to_path << std::endl;
+
+    std::filesystem::path parent_path = to_path.parent_path();
+    if (std::filesystem::is_directory(parent_path))
+    {
+        std::cout << "Found existing directory: " << parent_path << ", no directory created." << std::endl;
+    } else
+    {
+        std::cout << "Creating directories: " << parent_path << std::endl;
+        std::filesystem::create_directories(parent_path);
+    }
+
+    std::filesystem::rename(from_path, to_path);
+}
+
 
 void scan_for_duplicates(std::shared_ptr<InputArguments> args)
 {
@@ -364,6 +381,19 @@ void scan_for_duplicates(std::shared_ptr<InputArguments> args)
     for (const FoundFile& found_file : unique_found_files)
     {
         std::cout << found_file.file_path << std::endl;
+    }
+
+    if (args->makeChanges)
+    {
+        std::string base_path = args->inputUnclassifiedPath;
+        for (const FoundFile& found_file : unique_found_files)
+        {
+
+            std::string path_after_base = found_file.file_path.substr(base_path.length());
+            std::string destination_path = std::string(args->inputUniquePath) + path_after_base;
+
+            move_file(found_file.file_path, destination_path);
+        }
     }
 
 
